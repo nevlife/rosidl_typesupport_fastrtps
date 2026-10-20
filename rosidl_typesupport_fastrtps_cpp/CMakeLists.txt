@@ -104,6 +104,11 @@ if(BUILD_TESTING)
       ${PROJECT_NAME} osrf_testing_tools_cpp::memory_tools)
   endif()
 
+  ament_add_gtest(test_sequence_helpers test/test_sequence_helpers.cpp)
+  if(TARGET test_sequence_helpers)
+    target_link_libraries(test_sequence_helpers ${PROJECT_NAME})
+  endif()
+
   find_package(ament_cmake_pytest REQUIRED)
   ament_add_pytest_test(test_cli_extension test/test_cli_extension.py)
 endif()

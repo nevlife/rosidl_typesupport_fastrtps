@@ -35,6 +35,7 @@ header_files = [
     'rosidl_typesupport_fastrtps_c/identifier.h',
     'rosidl_typesupport_fastrtps_c/serialization_helpers.hpp',
     'rosidl_typesupport_fastrtps_c/wstring_conversion.hpp',
+    'rosidl_typesupport_fastrtps_cpp/serialization_helpers.hpp',
     # Provides the definition of the message_type_support_callbacks_t struct.
     'rosidl_typesupport_fastrtps_cpp/message_type_support.h',
     package_name + '/msg/rosidl_typesupport_fastrtps_c__visibility_control.h',
@@ -273,6 +274,21 @@ def generate_member_for_cdr_serialize(member, suffix):
       strlist.append('  }')
     elif isinstance(member.type.value_type, BasicType):
       strlist.append('  cdr.serialize_array(array_ptr, size);')
+    elif not isinstance(member.type, (Array, BoundedSequence)) and suffix == '':
+      name = '__'.join(member.type.value_type.namespaced_name())
+      strlist.append('  rosidl_typesupport_fastrtps_cpp::cdr_serialize_message_array(')
+      strlist.append('    cdr, array_ptr, size,')
+      strlist.append('    [](const auto & item, eprosima::fastcdr::Cdr & c) {')
+      strlist.append('      return cdr_serialize_%s(&item, c);' % (name))
+      strlist.append('    },')
+      strlist.append('    [](eprosima::fastcdr::Cdr & c, auto & item) {')
+      strlist.append('      return cdr_deserialize_%s(c, &item);' % (name))
+      strlist.append('    },')
+      strlist.append('    []() {')
+      strlist.append('      bool full_bounded, is_plain;')
+      strlist.append('      max_serialized_size_%s(full_bounded, is_plain, 0);' % (name))
+      strlist.append('      return is_plain;')
+      strlist.append('    });')
     else :
       strlist.append('  for (size_t i = 0; i < size; ++i) {')
       strlist.append('    cdr_serialize%s_%s(' % (suffix, ('__'.join(member.type.value_type.namespaced_name()))))
@@ -419,6 +435,17 @@ else:
     }
 @[    elif isinstance(member.type.value_type, BasicType)]@
     cdr.deserialize_array(array_ptr, size);
+@[    elif not isinstance(member.type, (Array, BoundedSequence))]@
+    rosidl_typesupport_fastrtps_cpp::cdr_deserialize_message_array(
+      cdr, array_ptr, size,
+      [](eprosima::fastcdr::Cdr & c, auto & item) {
+        return cdr_deserialize_@('__'.join(member.type.value_type.namespaced_name()))(c, &item);
+      },
+      []() {
+        bool full_bounded, is_plain;
+        max_serialized_size_@('__'.join(member.type.value_type.namespaced_name()))(full_bounded, is_plain, 0);
+        return is_plain;
+      });
 @[    else]@
     for (size_t i = 0; i < size; ++i) {
       cdr_deserialize_@('__'.join(member.type.value_type.namespaced_name()))(cdr, &array_ptr[i]);
@@ -509,6 +536,21 @@ def generate_member_for_get_serialized_size(member, suffix):
       strlist.append('  size_t item_size = sizeof(array_ptr[0]);')
       strlist.append('  current_alignment += array_size * item_size +')
       strlist.append('    eprosima::fastcdr::Cdr::alignment(current_alignment, item_size);')
+    elif not isinstance(member.type, (Array, BoundedSequence)) and suffix == '':
+      name = '__'.join(member.type.value_type.namespaced_name())
+      strlist.append('  current_alignment = rosidl_typesupport_fastrtps_cpp::serialized_size_message_array(')
+      strlist.append('    array_ptr, array_size, current_alignment,')
+      strlist.append('    [](const auto & item, size_t alignment) {')
+      strlist.append('      return get_serialized_size_%s(&item, alignment);' % (name))
+      strlist.append('    },')
+      strlist.append('    [](eprosima::fastcdr::Cdr & c, auto & item) {')
+      strlist.append('      return cdr_deserialize_%s(c, &item);' % (name))
+      strlist.append('    },')
+      strlist.append('    []() {')
+      strlist.append('      bool full_bounded, is_plain;')
+      strlist.append('      max_serialized_size_%s(full_bounded, is_plain, 0);' % (name))
+      strlist.append('      return is_plain;')
+      strlist.append('    });')
     else:
       strlist.append('  for (size_t index = 0; index < array_size; ++index) {')
       strlist.append('    current_alignment += get_serialized_size%s_%s(' % (suffix, ('__'.join(member.type.value_type.namespaced_name()))))
